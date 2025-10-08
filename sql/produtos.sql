@@ -7,3 +7,28 @@ create table public.produtos (
   imagem text not null,
   constraint produtos_pkey primary key (id)
 ) TABLESPACE pg_default;
+
+CREATE POLICY "Produtos são visíveis para todos"
+ON public.produtos
+FOR SELECT
+TO anon, authenticated
+USING ( true );
+
+CREATE POLICY "Apenas administradores podem criar produtos"
+ON public.produtos
+FOR INSERT
+TO authenticated
+WITH CHECK ( (select auth.jwt() ->> 'app_metadata' ->> 'role') = 'admin' );
+
+CREATE POLICY "Apenas administradores podem atualizar produtos"
+ON public.produtos
+FOR UPDATE
+TO authenticated
+USING ( (select auth.jwt() ->> 'app_metadata' ->> 'role') = 'admin' )
+WITH CHECK ( (select auth.jwt() ->> 'app_metadata' ->> 'role') = 'admin' );
+
+CREATE POLICY "Apenas administradores podem deletar produtos"
+ON public.produtos
+FOR DELETE
+TO authenticated
+USING ( (select auth.jwt() ->> 'app_metadata' ->> 'role') = 'admin' );

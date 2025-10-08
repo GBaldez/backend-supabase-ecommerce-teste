@@ -10,3 +10,47 @@ create table public.avaliacoes (
   constraint avaliacoes_id_cliente_fkey foreign key (id_cliente) references clientes (id),
   constraint avaliacoes_id_produto_id_cliente_key unique (id_produto, id_cliente)
 ) TABLESPACE pg_default;
+
+ALTER TABLE public.avaliacoes ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "Avaliações são visíveis para todos"
+ON public.avaliacoes
+FOR SELECT
+TO anon, authenticated
+USING ( true );
+
+
+-- O cliente só pode inserir uma avaliação se ele comprou o produto.
+CREATE POLICY "Insert avaliacoes: so produtos comprados."
+ON public.avaliacoes
+FOR INSERT
+TO authenticated
+WITH CHECK (
+    -- 1. Verifica se o id_cliente da avaliação é o usuário logado
+    (select auth.uid()) = id_cliente
+    AND 
+    -- 2. Verifica se existe um item_pedido para este produto, feito por este usuário.
+    EXISTS (
+        SELECT 1
+        FROM public.pedidos AS p
+        JOIN public.itens_pedido AS ip ON p.id = ip.pedido_id
+        WHERE 
+            p.user_id = (select auth.uid()) -- O pedido pertence ao cliente logado
+            AND ip.produto_id = new.id_produto -- O produto do item_pedido é o mesmo da avaliação
+            -- OPÇÃO AVANÇADA: Adicionar condição de status, ex: AND p.status = 'concluido'
+    )
+);
+
+CREATE POLICY "Usuário pode atualizar apenas suas próprias avaliações"
+ON public.avaliacoes
+FOR UPDATE
+TO authenticated
+USING ( (select auth.uid()) = id_cliente )
+WITH CHECK ( (select auth.uid()) = id_cliente );
+
+CREATE POLICY "Usuário pode deletar apenas suas próprias avaliações"
+ON public.avaliacoes
+FOR DELETE
+TO authenticated
+USING ( (select auth.uid()) = id_cliente );
